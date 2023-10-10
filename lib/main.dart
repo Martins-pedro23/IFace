@@ -61,7 +61,7 @@ class _TestRenderState extends State<TestRender> {
 
   bool _isConnected = false;
   bool _isFaceDetected = false;
-  FaceLandmarkType? _faceLandmarkType;
+  FaceLandmark? _faceLandmark;
   StreamSubscription<String>? _subscription;
   Transaction<String>? _transaction;
   UsbDevice? _device;
@@ -170,6 +170,22 @@ class _TestRenderState extends State<TestRender> {
     _connectTo(null);
   }
 
+  Widget _faceLandmarkTypeWidget() {
+    List<Widget> widgets = [];
+    int i = 0;
+
+    _face?.landmarks.values.forEach((element) {
+      widgets.add(Text('${_face?.landmarks.keys.elementAt(i).name}: ${element!.position.x.toString()}',
+          style: TextStyle(color: Colors.black, fontSize: 10)));
+      i++;
+    });
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: widgets,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder(
@@ -177,7 +193,7 @@ class _TestRenderState extends State<TestRender> {
             ObjParser().loadFromResources("assets/glasses/circle_glasses.obj"),
         builder: (context, snapshot) {
           return Container(
-            height: 300,
+            height: 400,
             color: Colors.blue,
             alignment: Alignment.center,
             child: Column(
@@ -190,7 +206,7 @@ class _TestRenderState extends State<TestRender> {
                 ),
                 Container(
                   color: Colors.blue,
-                  height: 300,
+                  height: 400,
                   alignment: Alignment.bottomCenter,
                   child: ListView(
                     children: [
@@ -208,27 +224,7 @@ class _TestRenderState extends State<TestRender> {
                           style: TextStyle(color: Colors.black, fontSize: 15)),
                       Text("smiling: ${_face?.smilingProbability}",
                           style: TextStyle(color: Colors.black, fontSize: 15)),
-                      Container(
-                        color: Colors.blue,
-                        height: 300,
-                        alignment: Alignment.bottomCenter,
-                        child: ListView.builder(
-                          itemCount: _face?.landmarks.length ?? 0,
-                          itemBuilder: (context, index) {
-                            final landmarkType =
-                                _face!.landmarks.keys.elementAt(index);
-                            final landmark = _face!.landmarks[landmarkType];
-
-                            return Text(
-                                  "Position: ${landmark?.position.toString()}");
-                            
-                          },
-                        ),
-                      ),
-                      Text("Contours: ${_face?.contours}",
-                          style: TextStyle(color: Colors.black, fontSize: 15)),
-                      Text("Bounding Box: ${_face?.boundingBox}",
-                          style: TextStyle(color: Colors.black, fontSize: 15)),
+                      _faceLandmarkTypeWidget()
                     ],
                   ),
                 ),
