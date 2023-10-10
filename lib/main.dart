@@ -1,27 +1,71 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:ditredi/ditredi.dart';
 import 'package:flutter/material.dart';
+import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
+import 'package:rxdart/subjects.dart';
 import 'package:usb_serial/transaction.dart';
 import 'package:usb_serial/usb_serial.dart';
 
-void main() => runApp(MyApp());
+import 'presentationals/widgets/face_detector/face_detector.dart';
 
-class MyApp extends StatefulWidget {
-  @override
-  _MyAppState createState() => _MyAppState();
+void main() {
+  runApp(MyApp());
 }
 
-class _MyAppState extends State<MyApp> {
+class MyApp extends StatelessWidget {
+  MyApp({super.key});
+  final faceDetector = FaceDetector(
+    options: FaceDetectorOptions(
+      enableLandmarks: true,
+    ),
+  );
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Flutter Demo',
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        useMaterial3: true,
+      ),
+      home: Stack(
+        children: [
+          FaceDetectorView(
+            onFaceDetected: (face) {
+              if (face.headEulerAngleX != null) {
+                FaceTrackerBloc.main.face.add(face);
+              }
+            },
+          ),
+          const IgnorePointer(child: TestRender()),
+        ],
+      ),
+    );
+  }
+}
+
+class TestRender extends StatefulWidget {
+  const TestRender({
+    super.key,
+  });
+  @override
+  State<TestRender> createState() => _TestRenderState();
+}
+
+class _TestRenderState extends State<TestRender> {
   UsbPort? _port;
   String _status = "Idle";
   List<Widget> _ports = [];
   List<Widget> _serialData = [];
 
+  bool _isConnected = false;
+  bool _isFaceDetected = false;
+  FaceLandmarkType? _faceLandmarkType;
   StreamSubscription<String>? _subscription;
   Transaction<String>? _transaction;
   UsbDevice? _device;
-
+  Face? _face;
   TextEditingController _textController = TextEditingController();
 
   Future<bool> _connectTo(device) async {
@@ -61,9 +105,11 @@ class _MyAppState extends State<MyApp> {
 
     await _port!.setDTR(true);
     await _port!.setRTS(true);
-    await _port!.setPortParameters(9600, UsbPort.DATABITS_8, UsbPort.STOPBITS_1, UsbPort.PARITY_NONE);
+    await _port!.setPortParameters(
+        9600, UsbPort.DATABITS_8, UsbPort.STOPBITS_1, UsbPort.PARITY_NONE);
 
-    _transaction = Transaction.stringTerminated(_port!.inputStream as Stream<Uint8List>, Uint8List.fromList([13, 10]));
+    _transaction = Transaction.stringTerminated(
+        _port!.inputStream as Stream<Uint8List>, Uint8List.fromList([13, 10]));
 
     _subscription = _transaction!.stream.listen((String line) {
       setState(() {
@@ -85,33 +131,32 @@ class _MyAppState extends State<MyApp> {
     List<UsbDevice> devices = await UsbSerial.listDevices();
     if (!devices.contains(_device)) {
       _connectTo(null);
+      _isConnected = false;
     }
     print(devices);
 
     devices.forEach((device) {
-      _ports.add(ListTile(
-          leading: Icon(Icons.usb),
-          title: Text(device.productName!),
-          subtitle: Text(device.manufacturerName!),
-          trailing: ElevatedButton(
-            child: Text(_device == device ? "Disconnect" : "Connect"),
-            onPressed: () {
-              _connectTo(_device == device ? null : device).then((res) {
-                _getPorts();
-              });
-            },
-          )));
+      _connectTo(_device == device ? null : device).then((res) {
+        _getPorts();
+      });
     });
 
+    if (!devices.isEmpty) {
+      _isConnected = true;
+    }
     setState(() {
-      print(_ports);
+      print(devices);
     });
   }
 
   @override
   void initState() {
     super.initState();
-
+    FaceTrackerBloc.main.face.listen((value) {
+      setState(() {
+        _face = value;
+      });
+    });
     UsbSerial.usbEventStream!.listen((UsbEvent event) {
       _getPorts();
     });
@@ -127,42 +172,74 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-        home: Scaffold(
-      appBar: AppBar(
-        title: const Text('USB Serial Plugin example app'),
-      ),
-      body: Center(
-          child: Column(children: <Widget>[
-        Text(_ports.length > 0 ? "Available Serial Ports" : "No serial devices available", style: Theme.of(context).textTheme.titleLarge),
-        ..._ports,
-        Text('Status: $_status\n'),
-        Text('info: ${_port.toString()}\n'),
-        ListTile(
-          title: TextField(
-            controller: _textController,
-            decoration: InputDecoration(
-              border: OutlineInputBorder(),
-              labelText: 'Text To Send',
+    return FutureBuilder(
+        future:
+            ObjParser().loadFromResources("assets/glasses/circle_glasses.obj"),
+        builder: (context, snapshot) {
+          return Container(
+            height: 300,
+            color: Colors.blue,
+            alignment: Alignment.center,
+            child: Column(
+              children: [
+                Text(
+                  _isConnected == true
+                      ? "Arduino Detectado"
+                      : "Arduino não detectado",
+                  style: TextStyle(color: Colors.black, fontSize: 20),
+                ),
+                Container(
+                  color: Colors.blue,
+                  height: 300,
+                  alignment: Alignment.bottomCenter,
+                  child: ListView(
+                    children: [
+                      Text("Face id: ${_face?.trackingId}",
+                          style: TextStyle(color: Colors.black, fontSize: 15)),
+                      Text("X: ${_face?.headEulerAngleX}",
+                          style: TextStyle(color: Colors.black, fontSize: 15)),
+                      Text("Y: ${_face?.headEulerAngleY}",
+                          style: TextStyle(color: Colors.black, fontSize: 15)),
+                      Text("Z: ${_face?.headEulerAngleZ}",
+                          style: TextStyle(color: Colors.black, fontSize: 15)),
+                      Text("Left eye: ${_face?.leftEyeOpenProbability}",
+                          style: TextStyle(color: Colors.black, fontSize: 15)),
+                      Text("Right eye: ${_face?.rightEyeOpenProbability}",
+                          style: TextStyle(color: Colors.black, fontSize: 15)),
+                      Text("smiling: ${_face?.smilingProbability}",
+                          style: TextStyle(color: Colors.black, fontSize: 15)),
+                      Container(
+                        color: Colors.blue,
+                        height: 300,
+                        alignment: Alignment.bottomCenter,
+                        child: ListView.builder(
+                          itemCount: _face?.landmarks.length ?? 0,
+                          itemBuilder: (context, index) {
+                            final landmarkType =
+                                _face!.landmarks.keys.elementAt(index);
+                            final landmark = _face!.landmarks[landmarkType];
+
+                            return Text(
+                                  "Position: ${landmark?.position.toString()}");
+                            
+                          },
+                        ),
+                      ),
+                      Text("Contours: ${_face?.contours}",
+                          style: TextStyle(color: Colors.black, fontSize: 15)),
+                      Text("Bounding Box: ${_face?.boundingBox}",
+                          style: TextStyle(color: Colors.black, fontSize: 15)),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ),
-          trailing: ElevatedButton(
-            child: Text("Send"),
-            onPressed: _port == null
-                ? null
-                : () async {
-                    if (_port == null) {
-                      return;
-                    }
-                    String data = _textController.text + "\r\n";
-                    await _port!.write(Uint8List.fromList(data.codeUnits));
-                    _textController.text = "";
-                  },
-          ),
-        ),
-        Text("Result Data", style: Theme.of(context).textTheme.titleLarge),
-        ..._serialData,
-      ])),
-    ));
+          );
+        });
   }
+}
+
+class FaceTrackerBloc {
+  static FaceTrackerBloc main = FaceTrackerBloc();
+  BehaviorSubject<Face?> face = BehaviorSubject<Face?>.seeded(null);
 }
