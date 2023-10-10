@@ -173,11 +173,36 @@ class _TestRenderState extends State<TestRender> {
   Widget _faceLandmarkTypeWidget() {
     List<Widget> widgets = [];
     int i = 0;
-
+    if (_face?.landmarks == null) {
+      return Container();
+    }
     _face?.landmarks.values.forEach((element) {
-      widgets.add(Text('${_face?.landmarks.keys.elementAt(i).name}: ${element!.position.x.toString()}',
+      if (element != null) {
+        widgets.add(Text('${_face?.landmarks.keys.elementAt(i).name}: ${element!.position.x.toString()}, ${element.position.y.toString()}',
           style: TextStyle(color: Colors.black, fontSize: 10)));
+      }
       i++;
+    });
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: widgets,
+    );
+  }
+
+  Widget _faceContoursWidget() {
+    List<Widget> widgets = [];
+    int i = 0;
+    if (_face?.contours == null) {
+      return Container();
+    }
+    _face?.contours.values.forEach((element) {
+      element!.points.forEach((element) {
+        if (element != null){
+          widgets.add(Text('${_face?.contours.keys.elementAt(i).name}: ${element.x.toString()}, ${element.y.toString()}',
+            style: TextStyle(color: Colors.black, fontSize: 10)));
+        }
+      });
     });
     return Column(
       mainAxisAlignment: MainAxisAlignment.start,
@@ -224,7 +249,8 @@ class _TestRenderState extends State<TestRender> {
                           style: TextStyle(color: Colors.black, fontSize: 15)),
                       Text("smiling: ${_face?.smilingProbability}",
                           style: TextStyle(color: Colors.black, fontSize: 15)),
-                      _faceLandmarkTypeWidget()
+                      _faceLandmarkTypeWidget(),
+                      _faceContoursWidget()
                     ],
                   ),
                 ),
