@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:ditredi/ditredi.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
+import 'package:iface_flutter/serial_port_page.dart';
 import 'package:rxdart/subjects.dart';
 import 'package:usb_serial/transaction.dart';
 import 'package:usb_serial/usb_serial.dart';
@@ -178,8 +179,9 @@ class _TestRenderState extends State<TestRender> {
     }
     _face?.landmarks.values.forEach((element) {
       if (element != null) {
-        widgets.add(Text('${_face?.landmarks.keys.elementAt(i).name}: ${element!.position.x.toString()}, ${element.position.y.toString()}',
-          style: TextStyle(color: Colors.black, fontSize: 10)));
+        widgets.add(Text(
+            '${_face?.landmarks.keys.elementAt(i).name}: ${element!.position.x.toString()}, ${element.position.y.toString()}',
+            style: TextStyle(color: Colors.black, fontSize: 10)));
       }
       i++;
     });
@@ -198,9 +200,10 @@ class _TestRenderState extends State<TestRender> {
     }
     _face?.contours.values.forEach((element) {
       element!.points.forEach((element) {
-        if (element != null){
-          widgets.add(Text('${_face?.contours.keys.elementAt(i).name}: ${element.x.toString()}, ${element.y.toString()}',
-            style: TextStyle(color: Colors.black, fontSize: 10)));
+        if (element != null) {
+          widgets.add(Text(
+              '${_face?.contours.keys.elementAt(i).name}: ${element.x.toString()}, ${element.y.toString()}',
+              style: TextStyle(color: Colors.black, fontSize: 10)));
         }
       });
     });
@@ -250,7 +253,16 @@ class _TestRenderState extends State<TestRender> {
                       Text("smiling: ${_face?.smilingProbability}",
                           style: TextStyle(color: Colors.black, fontSize: 15)),
                       _faceLandmarkTypeWidget(),
-                      _faceContoursWidget()
+                      _faceContoursWidget(),
+                      ElevatedButton(
+                        onPressed: () {
+                          Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => Serial_port_page()));
+                        },
+                        child: const Text("Ir para pagina do arduino"),
+                      )
                     ],
                   ),
                 ),
