@@ -18,10 +18,10 @@ class FaceDetectorView extends StatefulWidget {
 class _FaceDetectorViewState extends State<FaceDetectorView> {
   final FaceDetector _faceDetector = FaceDetector(
     options: FaceDetectorOptions(
-      enableLandmarks: true,
-      enableContours: true,
       enableClassification: true,
+      minFaceSize: 0.5,
       enableTracking: true,
+      performanceMode: FaceDetectorMode.accurate,
     ),
   );
   bool _canProcess = true;

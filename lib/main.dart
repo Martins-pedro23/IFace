@@ -1,72 +1,71 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:ditredi/ditredi.dart';
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
-import 'package:iface_flutter/serial_port_page.dart';
+import 'package:iface_flutter/presentationals/widgets/face_detector/face_detector.dart';
 import 'package:rxdart/subjects.dart';
 import 'package:usb_serial/transaction.dart';
 import 'package:usb_serial/usb_serial.dart';
 
-import 'presentationals/widgets/face_detector/face_detector.dart';
+void main() => runApp(IFace());
 
-void main() {
-  runApp(MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  MyApp({super.key});
+class IFace extends StatefulWidget {
+  IFace({super.key});
   final faceDetector = FaceDetector(
     options: FaceDetectorOptions(
       enableLandmarks: true,
     ),
   );
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      home: Stack(
-        children: [
-          FaceDetectorView(
-            onFaceDetected: (face) {
-              if (face.headEulerAngleX != null) {
-                FaceTrackerBloc.main.face.add(face);
-              }
-            },
-          ),
-          const IgnorePointer(child: TestRender()),
-        ],
-      ),
-    );
+  State<IFace> createState() => _IFaceState();
+}
+
+class FaceDetectorPainter extends CustomPainter {
+  final Size absulteImageSize;
+  final Face face;
+  FaceDetectorPainter(this.absulteImageSize, this.face);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+
+    size = absulteImageSize;
+
+    final Paint paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0
+      ..color = Colors.red;
+
+    canvas.drawRect(
+        Rect.fromLTRB(
+            face.boundingBox.left,
+            face.boundingBox.bottom,
+            face.boundingBox.right,
+            face.boundingBox.top),
+        paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant FaceDetectorPainter oldDelegate) {
+    return oldDelegate.absulteImageSize != absulteImageSize ||
+        oldDelegate.face != face;
   }
 }
 
-class TestRender extends StatefulWidget {
-  const TestRender({
-    super.key,
-  });
-  @override
-  State<TestRender> createState() => _TestRenderState();
-}
-
-class _TestRenderState extends State<TestRender> {
+class _IFaceState extends State<IFace> {
+  Face? _face;
   UsbPort? _port;
   String _status = "Idle";
-  List<Widget> _ports = [];
+  List<Widget> _ports = []; /*  */
   List<Widget> _serialData = [];
 
-  bool _isConnected = false;
-  bool _isFaceDetected = false;
-  FaceLandmark? _faceLandmark;
   StreamSubscription<String>? _subscription;
   Transaction<String>? _transaction;
   UsbDevice? _device;
-  Face? _face;
+
+  CameraController? _cameraController;
+
   TextEditingController _textController = TextEditingController();
 
   Future<bool> _connectTo(device) async {
@@ -132,37 +131,52 @@ class _TestRenderState extends State<TestRender> {
     List<UsbDevice> devices = await UsbSerial.listDevices();
     if (!devices.contains(_device)) {
       _connectTo(null);
-      _isConnected = false;
     }
-    print(devices);
 
     devices.forEach((device) {
-      _connectTo(_device == device ? null : device).then((res) {
-        _getPorts();
-      });
-    });
-
-    if (!devices.isEmpty) {
-      _isConnected = true;
-    }
-    setState(() {
-      print(devices);
+      _ports.add(ListTile(
+          leading: const Icon(Icons.usb),
+          title: Text(device.productName!),
+          subtitle: Text(device.manufacturerName!),
+          trailing: ElevatedButton(
+            child: Text(_device == device ? "Disconnect" : "Connect"),
+            onPressed: () {
+              _connectTo(_device == device ? null : device).then((res) {
+                _getPorts();
+              });
+            },
+          )));
     });
   }
 
   @override
   void initState() {
     super.initState();
-    FaceTrackerBloc.main.face.listen((value) {
-      setState(() {
-        _face = value;
-      });
-    });
+
     UsbSerial.usbEventStream!.listen((UsbEvent event) {
       _getPorts();
     });
 
     _getPorts();
+
+    FaceTrackerBloc.main.face.listen((value) async {
+      if (value!.headEulerAngleX! > 20 && _port != null) {
+        await _port!.write(Uint8List.fromList("F\r\n".codeUnits));
+      }
+      if (value.headEulerAngleX! < -20 && _port != null) {
+        await _port!.write(Uint8List.fromList("B\r\n".codeUnits));
+      }
+      if (value.headEulerAngleY! > 20 && _port != null) {
+        await _port!.write(Uint8List.fromList("R\r\n".codeUnits));
+      }
+      if (value.headEulerAngleY! < -20 && _port != null) {
+        await _port!.write(Uint8List.fromList("L\r\n".codeUnits));
+      }
+
+      setState(() {
+        _face = value;
+      });
+    });
   }
 
   @override
@@ -171,105 +185,92 @@ class _TestRenderState extends State<TestRender> {
     _connectTo(null);
   }
 
-  Widget _faceLandmarkTypeWidget() {
-    List<Widget> widgets = [];
-    int i = 0;
-    if (_face?.landmarks == null) {
+  Widget _buildFaceDetectorPainter() {
+    if (_face == null) {
       return Container();
     }
-    _face?.landmarks.values.forEach((element) {
-      if (element != null) {
-        widgets.add(Text(
-            '${_face?.landmarks.keys.elementAt(i).name}: ${element!.position.x.toString()}, ${element.position.y.toString()}',
-            style: TextStyle(color: Colors.black, fontSize: 10)));
-      }
-      i++;
-    });
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.start,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: widgets,
-    );
-  }
 
-  Widget _faceContoursWidget() {
-    List<Widget> widgets = [];
-    int i = 0;
-    if (_face?.contours == null) {
-      return Container();
-    }
-    _face?.contours.values.forEach((element) {
-      element!.points.forEach((element) {
-        if (element != null) {
-          widgets.add(Text(
-              '${_face?.contours.keys.elementAt(i).name}: ${element.x.toString()}, ${element.y.toString()}',
-              style: TextStyle(color: Colors.black, fontSize: 10)));
-        }
-      });
-    });
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.start,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: widgets,
+    return CustomPaint(
+      painter: FaceDetectorPainter(
+        Size(1080, 1920),
+        _face!
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder(
-        future:
-            ObjParser().loadFromResources("assets/glasses/circle_glasses.obj"),
-        builder: (context, snapshot) {
-          return Container(
-            height: 400,
-            color: Colors.blue,
-            alignment: Alignment.center,
-            child: Column(
-              children: [
-                Text(
-                  _isConnected == true
-                      ? "Arduino Detectado"
-                      : "Arduino não detectado",
-                  style: TextStyle(color: Colors.black, fontSize: 20),
-                ),
-                Container(
-                  color: Colors.blue,
-                  height: 400,
-                  alignment: Alignment.bottomCenter,
-                  child: ListView(
-                    children: [
-                      Text("Face id: ${_face?.trackingId}",
-                          style: TextStyle(color: Colors.black, fontSize: 15)),
-                      Text("X: ${_face?.headEulerAngleX}",
-                          style: TextStyle(color: Colors.black, fontSize: 15)),
-                      Text("Y: ${_face?.headEulerAngleY}",
-                          style: TextStyle(color: Colors.black, fontSize: 15)),
-                      Text("Z: ${_face?.headEulerAngleZ}",
-                          style: TextStyle(color: Colors.black, fontSize: 15)),
-                      Text("Left eye: ${_face?.leftEyeOpenProbability}",
-                          style: TextStyle(color: Colors.black, fontSize: 15)),
-                      Text("Right eye: ${_face?.rightEyeOpenProbability}",
-                          style: TextStyle(color: Colors.black, fontSize: 15)),
-                      Text("smiling: ${_face?.smilingProbability}",
-                          style: TextStyle(color: Colors.black, fontSize: 15)),
-                      _faceLandmarkTypeWidget(),
-                      _faceContoursWidget(),
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => Serial_port_page()));
-                        },
-                        child: const Text("Ir para pagina do arduino"),
-                      )
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        });
+    const textStyle = TextStyle(color: Colors.black, fontSize: 10, height: 1.5);
+    return MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'IFace',
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+          useMaterial3: true,
+        ),
+        home: Material(
+          child: Stack(
+            children: [
+              FaceDetectorView(
+                onFaceDetected: (face) {
+                  if (face.headEulerAngleX != null) {
+                    FaceTrackerBloc.main.face.add(face);
+                  }
+                },
+              ),
+              _buildFaceDetectorPainter(),
+              Padding(
+                  padding: const EdgeInsets.only(top: 100),
+                  child: Column(children: <Widget>[
+                    Text(
+                        _ports.isNotEmpty
+                            ? "Available Serial Ports"
+                            : "No serial devices available",
+                        style: Theme.of(context).textTheme.titleLarge),
+                    ..._ports,
+                    Text('Status: $_status\n'),
+                    Text('info: ${_port.toString()}\n'),
+                    Text("Result Data",
+                        style: Theme.of(context).textTheme.titleLarge),
+                    ..._serialData,
+                    Text("Face id: ${_face?.trackingId}", style: textStyle),
+                    Text("X: ${_face?.headEulerAngleX}", style: textStyle),
+                    Text("Y: ${_face?.headEulerAngleY}", style: textStyle),
+                    Text("Z: ${_face?.headEulerAngleZ}", style: textStyle),
+                    Text("Left eye open: ${_face?.leftEyeOpenProbability}",
+                        style: textStyle),
+                    Text("Right eye open: ${_face?.rightEyeOpenProbability}",
+                        style: textStyle),
+                    Text("Result Data",
+                        style: Theme.of(context).textTheme.titleLarge),
+                    const Padding(padding: EdgeInsets.only(top: 350)),
+                    ListTile(
+                      title: TextField(
+                        controller: _textController,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          labelText: 'Enviar Comando',
+                        ),
+                      ),
+                      trailing: ElevatedButton(
+                        child: const Text("Enviar"),
+                        onPressed: _port == null
+                            ? null
+                            : () async {
+                                if (_port == null) {
+                                  return;
+                                }
+                                String data = "${_textController.text}\r\n";
+                                await _port!
+                                    .write(Uint8List.fromList(data.codeUnits));
+                                _textController.text = "";
+                              },
+                      ),
+                    ),
+                  ])),
+            ],
+          ),
+        ));
   }
 }
 
