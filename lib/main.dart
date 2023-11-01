@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_face_detection/google_mlkit_face_detection.dart';
 import 'package:iface_flutter/presentationals/widgets/face_detector/face_detector.dart';
@@ -22,7 +21,7 @@ class IFace extends StatefulWidget {
   State<IFace> createState() => _IFaceState();
 }
 
-class FaceDetectorPainter extends CustomPainter {
+/* class FaceDetectorPainter extends CustomPainter {
   final Size absulteImageSize;
   final Face face;
   FaceDetectorPainter(this.absulteImageSize, this.face);
@@ -51,22 +50,20 @@ class FaceDetectorPainter extends CustomPainter {
     return oldDelegate.absulteImageSize != absulteImageSize ||
         oldDelegate.face != face;
   }
-}
+} */
 
 class _IFaceState extends State<IFace> {
   Face? _face;
   UsbPort? _port;
   String _status = "Idle";
-  List<Widget> _ports = []; /*  */
-  List<Widget> _serialData = [];
+  List<Widget> _ports = [];
+  final List<Widget> _serialData = [];
 
   StreamSubscription<String>? _subscription;
   Transaction<String>? _transaction;
   UsbDevice? _device;
 
-  CameraController? _cameraController;
-
-  TextEditingController _textController = TextEditingController();
+  final TextEditingController _textController = TextEditingController();
 
   Future<bool> _connectTo(device) async {
     _serialData.clear();
@@ -160,16 +157,16 @@ class _IFaceState extends State<IFace> {
     _getPorts();
 
     FaceTrackerBloc.main.face.listen((value) async {
-      if (value!.headEulerAngleX! > 20 && _port != null) {
+      if (value!.headEulerAngleX! > 25 && _port != null) {
         await _port!.write(Uint8List.fromList("F\r\n".codeUnits));
       }
-      if (value.headEulerAngleX! < -20 && _port != null) {
+      if (value.headEulerAngleX! < -18 && _port != null) {
         await _port!.write(Uint8List.fromList("B\r\n".codeUnits));
       }
-      if (value.headEulerAngleY! > 20 && _port != null) {
+      if (value.headEulerAngleY! > 25 && _port != null) {
         await _port!.write(Uint8List.fromList("R\r\n".codeUnits));
       }
-      if (value.headEulerAngleY! < -20 && _port != null) {
+      if (value.headEulerAngleY! < -25 && _port != null) {
         await _port!.write(Uint8List.fromList("L\r\n".codeUnits));
       }
 
@@ -185,18 +182,18 @@ class _IFaceState extends State<IFace> {
     _connectTo(null);
   }
 
-  Widget _buildFaceDetectorPainter() {
+/*   Widget _buildFaceDetectorPainter() {
     if (_face == null) {
       return Container();
     }
 
     return CustomPaint(
       painter: FaceDetectorPainter(
-        Size(1080, 1920),
+        const Size(1080, 1920),
         _face!
       ),
     );
-  }
+  } */
 
   @override
   Widget build(BuildContext context) {
@@ -218,7 +215,7 @@ class _IFaceState extends State<IFace> {
                   }
                 },
               ),
-              _buildFaceDetectorPainter(),
+              /* _buildFaceDetectorPainter(), */
               Padding(
                   padding: const EdgeInsets.only(top: 100),
                   child: Column(children: <Widget>[
@@ -241,9 +238,6 @@ class _IFaceState extends State<IFace> {
                         style: textStyle),
                     Text("Right eye open: ${_face?.rightEyeOpenProbability}",
                         style: textStyle),
-                    Text("Result Data",
-                        style: Theme.of(context).textTheme.titleLarge),
-                    const Padding(padding: EdgeInsets.only(top: 350)),
                     ListTile(
                       title: TextField(
                         controller: _textController,
@@ -267,6 +261,8 @@ class _IFaceState extends State<IFace> {
                               },
                       ),
                     ),
+                    Text("Result Data",
+                        style: Theme.of(context).textTheme.titleLarge),
                   ])),
             ],
           ),
